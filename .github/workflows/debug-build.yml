@@ -23,6 +23,7 @@ jobs:
     timeout-minutes: 30
 
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-12, macos-14, windows-latest]
         include:
@@ -36,6 +37,13 @@ jobs:
             platform: windows
 
     steps:
+      - name: Check platform
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform }}" != "${{ github.event.inputs.platform }}" ]]; then
+            echo "Platform '${{ matrix.platform }}' does not match selected platform '${{ github.event.inputs.platform }}'. Ending job."
+            exit 1
+          fi
       - uses: actions/checkout@master
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v4
@@ -68,5 +76,3 @@ jobs:
         with:
           name: nuclear-binaries-${{ matrix.platform }}-debug
           path: release/*.*
-      - name: Notify Debug Build
-        run: echo "Debug build for ${{ matrix.platform }} is complete. Artifacts are uploaded."

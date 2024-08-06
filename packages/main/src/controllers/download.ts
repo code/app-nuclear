@@ -1,9 +1,9 @@
 import { NuclearMeta, IpcEvents } from '@nuclear/core';
 
-import { IpcMessageEvent, DownloadItem } from 'electron';
+import { IpcMessageEvent, DownloadItem, app } from 'electron';
 import { inject } from 'inversify';
 import prism from 'prism-media';
-import { createWriteStream } from 'fs';
+import { createWriteStream, createReadStream } from 'fs';
 import { rm } from 'fs/promises';
 
 import { ipcController, ipcEvent } from '../utils/decorators';
@@ -12,6 +12,7 @@ import Download from '../services/download';
 import Logger, { $mainLogger } from '../services/logger';
 import Window from '../services/window';
 import Platform from '../services/platform';
+import path from 'path';
 
 interface DownloadRef {
   uuid: string;
@@ -26,7 +27,11 @@ class DownloadIpcCtrl {
     @inject($mainLogger) private logger: Logger,
     @inject(Window) private window: Window,
     @inject(Platform) private platform: Platform
-  ) { }
+  ) { 
+    const ffmpegFilename = platform.isWindows() ? 'ffmpeg.exe' : 'ffmpeg';
+
+    process.env.FFMPEG_BIN = path.join(path.dirname(app.getAppPath()), '../resources/bin/', ffmpegFilename);
+  }
 
   removeInvalidCharacters(filename: string): string {
     let invalidChars: string[];
@@ -83,21 +88,20 @@ class DownloadIpcCtrl {
           });
         },
         onCompleted: (file) => {
+          
           this.window?.send(IpcEvents.DOWNLOAD_FINISHED, uuid);
           this.logger.log(`Download success: ${artistName} - ${title}, path: ${file.path}`);
-          this.logger.log('');
           this.downloadItems = this.downloadItems.filter((item) => item.uuid !== uuid);
+
+          const inputStream = createReadStream(file.path);
           const outputFilename = file.path.replace(/\.[^.]+$/, '.mp3');
           const transcoder = new prism.FFmpeg({args: [
-            '-i', file.path,
             '-f', 'mp3',
             '-vn',
             '-q:a', '2',
             '-ac', '2',
             '-ar', '48000',
-            '-y',
-            '-',
-            outputFilename
+            '-y'
           ]});
 
           transcoder
@@ -110,7 +114,7 @@ class DownloadIpcCtrl {
               this.logger.log(`Removed after conversion: ${file.path}`);
             });
 
-          transcoder.pipe(createWriteStream(outputFilename));
+          inputStream.pipe(transcoder).pipe(createWriteStream(outputFilename));
         }
       });
     } catch (error) {

@@ -40,7 +40,8 @@ module.exports = (env: BuildEnv): webpack.Configuration => {
       symlinks: false
     },
     externals: {
-      'sqlite3': 'commonjs sqlite3'
+      'sqlite3': 'commonjs sqlite3',
+      '@nuclear/scanner': 'commonjs ./scanner.node'
     },
     output: {
       path: path.resolve(__dirname, outputDir),
@@ -72,15 +73,15 @@ module.exports = (env: BuildEnv): webpack.Configuration => {
       __filename: false
     },
     target: 'electron-main',
-    plugins: [
-      new CopyPlugin([
+    plugins: [new CopyPlugin({
+      patterns: [
         { from: 'preload.js' },
         { from: path.resolve(__dirname, '../../.env') },
-        { from: SCANNER_DIR }
-      ]),
-      new webpack.NormalModuleReplacementPlugin(/(.*)system-api(\.*)/, (resource) => {
-        resource.request = resource.request.replace(/system-api/, `@${env.TARGET}/system-api`);
-      })
-    ]
+        { from: path.resolve(SCANNER_DIR, 'index.node'), to: 'scanner.node' }
+      ]
+    }),
+    new webpack.NormalModuleReplacementPlugin(/(.*)system-api(\.*)/, (resource) => {
+      resource.request = resource.request.replace(/system-api/, `@${env.TARGET}/system-api`);
+    })]
   };
 };
